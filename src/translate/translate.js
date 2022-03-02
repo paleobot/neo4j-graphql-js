@@ -1301,10 +1301,14 @@ const nodeQuery = ({
   const predicate = predicateClauses ? `WHERE ${predicateClauses} ` : '';
   const { optimization, cypherPart: orderByClause } = orderByValue;
 
+  const cypherMatchPrefix = cypherParams ? 
+    cypherParams.cypherMatchPrefix || '' : 
+    '';
+    
   let query = `${
     fullTextSearchStatement
       ? `${fullTextSearchStatement} `
-      : `MATCH (${safeVariableName}:${safeLabelName}${
+      : `MATCH ${cypherMatchPrefix}(${safeVariableName}:${safeLabelName}${
           argString ? ` ${argString}` : ''
         })`
   } ${predicate}${
