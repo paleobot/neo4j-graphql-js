@@ -1301,8 +1301,22 @@ const nodeQuery = ({
   const predicate = predicateClauses ? `WHERE ${predicateClauses} ` : '';
   const { optimization, cypherPart: orderByClause } = orderByValue;
 
+  /*
   const cypherMatchPrefix = cypherParams ? 
     cypherParams.cypherMatchPrefix || '' : 
+    '';
+  */
+  const cypherMatchPrefix = cypherParams ? 
+    (cypherParams.cypherMatchPrefix ?
+        (cypherParams.skipPrefixNodeTypes ?
+            (cypherParams.skipPrefixNodeTypes.includes(typeName) ? 
+                '' : 
+                cypherParams.cypherMatchPrefix
+            ) :
+            cypherParams.cypherMatchPrefix
+        ) :
+        ''
+    ) :
     '';
     
   let query = `${
@@ -1317,6 +1331,8 @@ const nodeQuery = ({
     optimization.earlyOrderBy ? '' : orderByClause
   }${outerSkipLimit}`;
 
+  console.log("neo4j-graphql-js query");
+  console.log(query);
   return [query, { ...params, ...fragmentTypeParams }];
 };
 
