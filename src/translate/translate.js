@@ -1327,7 +1327,7 @@ const nodeQuery = ({
         })`
   } ${predicate}${
     optimization.earlyOrderBy ? `WITH ${safeVariableName}${orderByClause}` : ''
-  }RETURN ${mapProjection} AS ${safeVariableName}${
+  }RETURN DISTINCT ${mapProjection} AS ${safeVariableName}${
     optimization.earlyOrderBy ? '' : orderByClause
   }${outerSkipLimit}`;
 
