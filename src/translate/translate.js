@@ -77,6 +77,18 @@ export const fragmentType = (varName, schemaTypeName) =>
     schemaTypeName
   )} ] )`;
 
+const cypherMatchPostfix = (cypherParams, typeName) => {
+  return cypherParams
+    ? cypherParams.cypherMatchPostfix
+      ? cypherParams.skipPostfixNodeTypes
+        ? cypherParams.skipPostfixNodeTypes.includes(typeName)
+          ? ''
+          : cypherParams.cypherMatchPostfix
+        : cypherParams.cypherMatchPostfix
+      : ''
+    : '';
+};
+
 export const derivedTypesParams = ({
   isInterfaceType,
   isUnionType,
@@ -268,6 +280,17 @@ export const relationFieldOnNodeType = ({
     ...filterPredicates
   ].filter(predicate => !!predicate);
 
+  const cypherPostfix = cypherMatchPostfix(
+    cypherParams,
+    safeLabel([
+      innerSchemaType.name,
+      ...getAdditionalLabels(
+        resolveInfo.schema.getType(innerSchemaType.name),
+        cypherParams
+      )
+    ])
+  );
+
   tailParams.initial = `${initial}${fieldName}: ${
     !isArrayType(fieldType) ? 'head(' : ''
   }${lhsOrdering}[(${safeVar(variableName)})${
@@ -284,7 +307,7 @@ export const relationFieldOnNodeType = ({
       resolveInfo.schema.getType(innerSchemaType.name),
       cypherParams
     )
-  ])}`}${queryParams})${
+  ])}`}${queryParams})${cypherPostfix}${
     whereClauses.length > 0 ? ` WHERE ${whereClauses.join(' AND ')}` : ''
   } | ${mapProjection}]${rhsOrdering}${
     !isArrayType(fieldType) ? ')' : ''
@@ -398,6 +421,17 @@ export const relationTypeFieldOnNodeType = ({
             )
           ];
 
+    const cypherPostfix = cypherMatchPostfix(
+      cypherParams,
+      safeLabel([
+        innerSchemaType.name,
+        ...getAdditionalLabels(
+          resolveInfo.schema.getType(innerSchemaType.name),
+          cypherParams
+        )
+      ])
+    );
+
     const whereClauses = [
       ...neo4jTypeClauses,
       ...filterPredicates,
@@ -412,7 +446,7 @@ export const relationTypeFieldOnNodeType = ({
       innerSchemaTypeRelation.name
     )}${queryParams}]-${
       selectsOutgoingField || isFromField ? '>' : ''
-    }(:${safeLabel(nestedTypeLabels)}) ${
+    }(:${safeLabel(nestedTypeLabels)})${cypherPostfix} ${
       whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')} ` : ''
     }| ${relationshipVariableName} {${subSelection[0]}}]${rhsOrdering}${
       !isArrayType(fieldType) ? ')' : ''
@@ -608,6 +642,18 @@ const directedNodeTypeFieldOnRelationType = ({
       return !Array.isArray(value);
     })
   );
+
+  const cypherPostfix = cypherMatchPostfix(
+    cypherParams,
+    safeLabel([
+      innerSchemaType.name,
+      ...getAdditionalLabels(
+        resolveInfo.schema.getType(innerSchemaType.name),
+        cypherParams
+      )
+    ])
+  );
+
   // Since the translations are significantly different,
   // we first check whether the relationship is reflexive
   if (fromTypeName === toTypeName) {
@@ -678,7 +724,7 @@ const directedNodeTypeFieldOnRelationType = ({
           resolveInfo.schema.getType(parentSchemaTypeName),
           cypherParams
         )
-      ])}) ${
+      ])})${cypherPostfix} ${
         whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')} ` : ''
       }| ${relationshipVariableName} {${subSelection[0]}}]${rhsOrdering}${
         !isArrayType(fieldType) ? ')' : ''
@@ -723,7 +769,7 @@ const directedNodeTypeFieldOnRelationType = ({
         resolveInfo.schema.getType(innerSchemaType.name),
         cypherParams
       )
-    ])}${queryParams})${
+    ])}${queryParams})${cypherPostfix}${
       whereClauses.length > 0 ? ` WHERE ${whereClauses.join(' AND ')}` : ''
     } | ${mapProjection}]${
       !isArrayType(fieldType) ? ')' : ''
@@ -1306,19 +1352,16 @@ const nodeQuery = ({
     cypherParams.cypherMatchPrefix || '' : 
     '';
   */
-  const cypherMatchPrefix = cypherParams ? 
-    (cypherParams.cypherMatchPrefix ?
-        (cypherParams.skipPrefixNodeTypes ?
-            (cypherParams.skipPrefixNodeTypes.includes(typeName) ? 
-                '' : 
-                cypherParams.cypherMatchPrefix
-            ) :
-            cypherParams.cypherMatchPrefix
-        ) :
-        ''
-    ) :
-    '';
-    
+  const cypherMatchPrefix = cypherParams
+    ? cypherParams.cypherMatchPrefix
+      ? cypherParams.skipPrefixNodeTypes
+        ? cypherParams.skipPrefixNodeTypes.includes(typeName)
+          ? ''
+          : cypherParams.cypherMatchPrefix
+        : cypherParams.cypherMatchPrefix
+      : ''
+    : '';
+
   let query = `${
     fullTextSearchStatement
       ? `${fullTextSearchStatement} `
@@ -1331,8 +1374,8 @@ const nodeQuery = ({
     optimization.earlyOrderBy ? '' : orderByClause
   }${outerSkipLimit}`;
 
-  console.log("neo4j-graphql-js query");
-  console.log(query);
+  //console.log("neo4j-graphql-js query");
+  //console.log(query);
   return [query, { ...params, ...fragmentTypeParams }];
 };
 
