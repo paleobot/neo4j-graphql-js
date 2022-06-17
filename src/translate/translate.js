@@ -77,12 +77,16 @@ export const fragmentType = (varName, schemaTypeName) =>
     schemaTypeName
   )} ] )`;
 
+//This is a really cheesy way to pass this info into cypherMatchPostfix. But I don't always have
+//access to the top level type everyplace it is called.
+let topLevelTypeName;
+
 const cypherMatchPostfix = (cypherParams, typeName) => {
   return cypherParams
     ? cypherParams.cypherMatchPostfix
-      ? cypherParams.skipPostfixNodeTypes
-        ? cypherParams.skipPostfixNodeTypes.includes(typeName)
-          ? ''
+      ? cypherParams.skipPrefixNodeTypes
+        ? cypherParams.skipPrefixNodeTypes.includes(topLevelTypeName)
+          ? '' //Do not include postfix if prefix is omitted (determined by top level type)
           : cypherParams.cypherMatchPostfix
         : cypherParams.cypherMatchPostfix
       : ''
@@ -1235,6 +1239,9 @@ const nodeQuery = ({
   const safeVariableName = safeVar(variableName);
   const safeLabelName = safeLabel([typeName, ...additionalLabels]);
   const rootParamIndex = 1;
+
+  topLevelTypeName = typeName; //tuck it in global for use by cypherMatchPostfix
+
   const [subQuery, subParams] = buildCypherSelection({
     cypherParams,
     selections,
