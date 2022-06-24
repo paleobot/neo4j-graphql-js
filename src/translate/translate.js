@@ -77,6 +77,22 @@ export const fragmentType = (varName, schemaTypeName) =>
     schemaTypeName
   )} ] )`;
 
+//This is a really cheesy way to pass this info into cypherMatchPostfix. But I don't always have
+//access to the top level type everyplace it is called.
+let topLevelTypeName;
+
+const cypherMatchPostfix = (cypherParams, typeName) => {
+  return cypherParams
+    ? cypherParams.cypherMatchPostfix
+      ? cypherParams.skipPrefixNodeTypes
+        ? cypherParams.skipPrefixNodeTypes.includes(topLevelTypeName)
+          ? '' //Do not include postfix if prefix is omitted (determined by top level type)
+          : cypherParams.cypherMatchPostfix
+        : cypherParams.cypherMatchPostfix
+      : ''
+    : '';
+};
+
 export const derivedTypesParams = ({
   isInterfaceType,
   isUnionType,
@@ -268,6 +284,17 @@ export const relationFieldOnNodeType = ({
     ...filterPredicates
   ].filter(predicate => !!predicate);
 
+  const cypherPostfix = cypherMatchPostfix(
+    cypherParams,
+    safeLabel([
+      innerSchemaType.name,
+      ...getAdditionalLabels(
+        resolveInfo.schema.getType(innerSchemaType.name),
+        cypherParams
+      )
+    ])
+  );
+
   tailParams.initial = `${initial}${fieldName}: ${
     !isArrayType(fieldType) ? 'head(' : ''
   }${lhsOrdering}[(${safeVar(variableName)})${
@@ -284,7 +311,7 @@ export const relationFieldOnNodeType = ({
       resolveInfo.schema.getType(innerSchemaType.name),
       cypherParams
     )
-  ])}`}${queryParams})${
+  ])}`}${queryParams})${cypherPostfix}${
     whereClauses.length > 0 ? ` WHERE ${whereClauses.join(' AND ')}` : ''
   } | ${mapProjection}]${rhsOrdering}${
     !isArrayType(fieldType) ? ')' : ''
@@ -398,6 +425,17 @@ export const relationTypeFieldOnNodeType = ({
             )
           ];
 
+    const cypherPostfix = cypherMatchPostfix(
+      cypherParams,
+      safeLabel([
+        innerSchemaType.name,
+        ...getAdditionalLabels(
+          resolveInfo.schema.getType(innerSchemaType.name),
+          cypherParams
+        )
+      ])
+    );
+
     const whereClauses = [
       ...neo4jTypeClauses,
       ...filterPredicates,
@@ -412,7 +450,7 @@ export const relationTypeFieldOnNodeType = ({
       innerSchemaTypeRelation.name
     )}${queryParams}]-${
       selectsOutgoingField || isFromField ? '>' : ''
-    }(:${safeLabel(nestedTypeLabels)}) ${
+    }(:${safeLabel(nestedTypeLabels)})${cypherPostfix} ${
       whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')} ` : ''
     }| ${relationshipVariableName} {${subSelection[0]}}]${rhsOrdering}${
       !isArrayType(fieldType) ? ')' : ''
@@ -608,6 +646,18 @@ const directedNodeTypeFieldOnRelationType = ({
       return !Array.isArray(value);
     })
   );
+
+  const cypherPostfix = cypherMatchPostfix(
+    cypherParams,
+    safeLabel([
+      innerSchemaType.name,
+      ...getAdditionalLabels(
+        resolveInfo.schema.getType(innerSchemaType.name),
+        cypherParams
+      )
+    ])
+  );
+
   // Since the translations are significantly different,
   // we first check whether the relationship is reflexive
   if (fromTypeName === toTypeName) {
@@ -678,7 +728,7 @@ const directedNodeTypeFieldOnRelationType = ({
           resolveInfo.schema.getType(parentSchemaTypeName),
           cypherParams
         )
-      ])}) ${
+      ])})${cypherPostfix} ${
         whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')} ` : ''
       }| ${relationshipVariableName} {${subSelection[0]}}]${rhsOrdering}${
         !isArrayType(fieldType) ? ')' : ''
@@ -723,7 +773,7 @@ const directedNodeTypeFieldOnRelationType = ({
         resolveInfo.schema.getType(innerSchemaType.name),
         cypherParams
       )
-    ])}${queryParams})${
+    ])}${queryParams})${cypherPostfix}${
       whereClauses.length > 0 ? ` WHERE ${whereClauses.join(' AND ')}` : ''
     } | ${mapProjection}]${
       !isArrayType(fieldType) ? ')' : ''
@@ -1189,6 +1239,9 @@ const nodeQuery = ({
   const safeVariableName = safeVar(variableName);
   const safeLabelName = safeLabel([typeName, ...additionalLabels]);
   const rootParamIndex = 1;
+
+  topLevelTypeName = typeName; //tuck it in global for use by cypherMatchPostfix
+
   const [subQuery, subParams] = buildCypherSelection({
     cypherParams,
     selections,
@@ -1301,18 +1354,35 @@ const nodeQuery = ({
   const predicate = predicateClauses ? `WHERE ${predicateClauses} ` : '';
   const { optimization, cypherPart: orderByClause } = orderByValue;
 
+  /*
+  const cypherMatchPrefix = cypherParams ? 
+    cypherParams.cypherMatchPrefix || '' : 
+    '';
+  */
+  const cypherMatchPrefix = cypherParams
+    ? cypherParams.cypherMatchPrefix
+      ? cypherParams.skipPrefixNodeTypes
+        ? cypherParams.skipPrefixNodeTypes.includes(typeName)
+          ? ''
+          : cypherParams.cypherMatchPrefix
+        : cypherParams.cypherMatchPrefix
+      : ''
+    : '';
+
   let query = `${
     fullTextSearchStatement
       ? `${fullTextSearchStatement} `
-      : `MATCH (${safeVariableName}:${safeLabelName}${
+      : `MATCH ${cypherMatchPrefix}(${safeVariableName}:${safeLabelName}${
           argString ? ` ${argString}` : ''
         })`
   } ${predicate}${
     optimization.earlyOrderBy ? `WITH ${safeVariableName}${orderByClause}` : ''
-  }RETURN ${mapProjection} AS ${safeVariableName}${
+  }RETURN DISTINCT ${mapProjection} AS ${safeVariableName}${
     optimization.earlyOrderBy ? '' : orderByClause
   }${outerSkipLimit}`;
 
+  //console.log("neo4j-graphql-js query");
+  //console.log(query);
   return [query, { ...params, ...fragmentTypeParams }];
 };
 
@@ -1490,7 +1560,7 @@ export const processFilterArgument = ({
     : undefined;
   const filterParamKey =
     paramIndex > 1 ? `${paramIndex - 1}_${argumentName}` : argumentName;
-  const filterCypherParam = `$${filterParamKey}`;
+  const filterCypherParam = `$\`${filterParamKey}\``;
   let translations = [];
   // allows an exception for the existence of the filter argument AST
   // if isFederatedOperation
@@ -2969,9 +3039,9 @@ export const translateListArguments = ({
       const paramIndex = indexedParam.index;
       const field = schemaType.getFields()[argumentName];
       const listVariable = `${safeVariableName}.${safeVar(argumentName)}`;
-      let paramPath = `$${argumentName}`;
+      let paramPath = `$\`${argumentName}\``;
       // Possibly use the already generated index used when naming nested parameters
-      if (paramIndex >= 1) paramPath = `$${paramIndex}_${argumentName}`;
+      if (paramIndex >= 1) paramPath = `$\`${paramIndex}_${argumentName}\``;
       let translation = '';
       if (field) {
         // list argument matches the name of a field
