@@ -85,8 +85,11 @@ const cypherMatchPostfix = (cypherParams, typeName) => {
   return cypherParams
     ? cypherParams.cypherMatchPostfix
       ? cypherParams.skipPrefixNodeTypes
-        ? cypherParams.skipPrefixNodeTypes.includes(topLevelTypeName)
-          ? '' //Do not include postfix if prefix is omitted (determined by top level type)
+        ? cypherParams.skipPrefixNodeTypes.includes(
+            topLevelTypeName.replace(/`/g, '')
+          ) || //Do not include postfix if prefix is omitted (determined by top level type)
+          cypherParams.skipPrefixNodeTypes.includes(typeName.replace(/`/g, '')) //Do not include postfix for listed types
+          ? ''
           : cypherParams.cypherMatchPostfix
         : cypherParams.cypherMatchPostfix
       : ''
