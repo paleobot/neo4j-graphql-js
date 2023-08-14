@@ -1066,6 +1066,7 @@ export const translateQuery = ({
       _id
     });
   }
+
   return [translation, translationParams];
 };
 
@@ -1384,8 +1385,12 @@ const nodeQuery = ({
     optimization.earlyOrderBy ? '' : orderByClause
   }${outerSkipLimit}`;
 
-  //console.log("neo4j-graphql-js query");
-  //console.log(query);
+  /*
+  if (cypherParams.debug) {
+    console.log(">>>>>>>>>>>>>>>>> neo4j-graphql-js query <<<<<<<<<<<<<<<<<<<<");
+    console.log(query);
+  }
+  */
   return [query, { ...params, ...fragmentTypeParams }];
 };
 
@@ -2949,7 +2954,7 @@ const buildNeo4jTypeTranslation = ({
           nullFieldPredicate = `${listVariable}.${filterName} IS NULL OR `;
         }
         if (isTemporalFormatted) {
-          return `(${nullFieldPredicate}${propertyPath} = ${cypherTypeConstructor}(${listVariable}.${filterName}))`;
+          return `(${nullFieldPredicate}${operatorExpression} ${cypherTypeConstructor}(${listVariable}.${filterName}))`;
         } else {
           return `(${nullFieldPredicate}${propertyPath}.${filterName} = ${listVariable}.${filterName})`;
         }
