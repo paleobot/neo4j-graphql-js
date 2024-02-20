@@ -81,19 +81,37 @@ export const fragmentType = (varName, schemaTypeName) =>
 //access to the top level type everyplace it is called.
 let topLevelTypeName;
 
-const cypherMatchPostfix = (cypherParams, typeName) => {
-  return cypherParams
+const cypherMatchPostfix = (cypherParams, typeName, variableName) => {
+  /*
+    return cypherParams
     ? cypherParams.cypherMatchPostfix
-      ? cypherParams.skipPrefixNodeTypes
+        ? cypherParams.skipPrefixNodeTypes
         ? cypherParams.skipPrefixNodeTypes.includes(
             topLevelTypeName.replace(/`/g, '')
-          ) || //Do not include postfix if prefix is omitted (determined by top level type)
-          cypherParams.skipPrefixNodeTypes.includes(typeName.replace(/`/g, '')) //Do not include postfix for listed types
-          ? ''
-          : cypherParams.cypherMatchPostfix
+            ) || //Do not include postfix if prefix is omitted (determined by top level type)
+            cypherParams.skipPrefixNodeTypes.includes(typeName.replace(/`/g, '')) //Do not include postfix for listed types
+            ? ''
+            : cypherParams.cypherMatchPostfix
         : cypherParams.cypherMatchPostfix
-      : ''
+        : ''
     : '';
+    */
+  if (
+    !cypherParams ||
+    !cypherParams.cypherMatchPostfix ||
+    //Do not include postfix if prefix is omitted (determined by top level type)
+    cypherParams.skipPrefixNodeTypes.includes(
+      topLevelTypeName.replace(/`/g, '')
+    ) ||
+    //Do not include postfix for listed types
+    cypherParams.skipPrefixNodeTypes.includes(typeName.replace(/`/g, ''))
+  ) {
+    //return '';
+    return [];
+  } else {
+    //return cypherParams.cypherMatchPostfix.replace("$<>", variableName)
+    return [cypherParams.cypherMatchPostfix.replace('$<>', variableName)];
+  }
 };
 
 export const derivedTypesParams = ({
@@ -280,13 +298,6 @@ export const relationFieldOnNodeType = ({
     filterParams
   });
 
-  let whereClauses = [
-    labelPredicate,
-    ...neo4jTypeClauses,
-    ...arrayPredicates,
-    ...filterPredicates
-  ].filter(predicate => !!predicate);
-
   const cypherPostfix = cypherMatchPostfix(
     cypherParams,
     safeLabel([
@@ -295,8 +306,18 @@ export const relationFieldOnNodeType = ({
         resolveInfo.schema.getType(innerSchemaType.name),
         cypherParams
       )
-    ])
+    ]),
+    safeVariableName
   );
+
+  let whereClauses = [
+    labelPredicate,
+    ...neo4jTypeClauses,
+    ...arrayPredicates,
+    ...filterPredicates,
+    //cypherPostfix.match(/exists/gi) ? cypherPostfix : ''
+    ...cypherPostfix
+  ].filter(predicate => !!predicate);
 
   tailParams.initial = `${initial}${fieldName}: ${
     !isArrayType(fieldType) ? 'head(' : ''
@@ -314,7 +335,13 @@ export const relationFieldOnNodeType = ({
       resolveInfo.schema.getType(innerSchemaType.name),
       cypherParams
     )
-  ])}`}${queryParams})${cypherPostfix}${
+  ])}`}${queryParams})${
+    cypherPostfix.length > 0
+      ? cypherPostfix[0].match(/exists/gi)
+        ? ''
+        : cypherPostfix[0]
+      : ''
+  }${
     whereClauses.length > 0 ? ` WHERE ${whereClauses.join(' AND ')}` : ''
   } | ${mapProjection}]${rhsOrdering}${
     !isArrayType(fieldType) ? ')' : ''
@@ -436,13 +463,16 @@ export const relationTypeFieldOnNodeType = ({
           resolveInfo.schema.getType(innerSchemaType.name),
           cypherParams
         )
-      ])
+      ]),
+      safeVar(variableName)
     );
 
     const whereClauses = [
       ...neo4jTypeClauses,
       ...filterPredicates,
-      ...arrayPredicates
+      ...arrayPredicates,
+      //cypherPostfix.match(/exists/gi) ? cypherPostfix : ''
+      ...cypherPostfix
     ];
     translation = `${initial}${fieldName}: ${
       !isArrayType(fieldType) ? 'head(' : ''
@@ -453,7 +483,13 @@ export const relationTypeFieldOnNodeType = ({
       innerSchemaTypeRelation.name
     )}${queryParams}]-${
       selectsOutgoingField || isFromField ? '>' : ''
-    }(:${safeLabel(nestedTypeLabels)})${cypherPostfix} ${
+    }(:${safeLabel(nestedTypeLabels)})${
+      cypherPostfix.length > 0
+        ? cypherPostfix[0].match(/exists/gi)
+          ? ''
+          : cypherPostfix[0]
+        : ''
+    } ${
       whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')} ` : ''
     }| ${relationshipVariableName} {${subSelection[0]}}]${rhsOrdering}${
       !isArrayType(fieldType) ? ')' : ''
@@ -658,7 +694,8 @@ const directedNodeTypeFieldOnRelationType = ({
         resolveInfo.schema.getType(innerSchemaType.name),
         cypherParams
       )
-    ])
+    ]),
+    safeVariableName
   );
 
   // Since the translations are significantly different,
@@ -714,7 +751,8 @@ const directedNodeTypeFieldOnRelationType = ({
       const whereClauses = [
         ...neo4jTypeClauses,
         ...filterPredicates,
-        ...arrayPredicates
+        ...arrayPredicates,
+        ...cypherPostfix
       ];
 
       tailParams.initial = `${initial}${fieldName}: ${
@@ -731,7 +769,13 @@ const directedNodeTypeFieldOnRelationType = ({
           resolveInfo.schema.getType(parentSchemaTypeName),
           cypherParams
         )
-      ])})${cypherPostfix} ${
+      ])})${
+        cypherPostfix.length > 0
+          ? cypherPostfix[0].match(/exists/gi)
+            ? ''
+            : cypherPostfix[0]
+          : ''
+      } ${
         whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')} ` : ''
       }| ${relationshipVariableName} {${subSelection[0]}}]${rhsOrdering}${
         !isArrayType(fieldType) ? ')' : ''
@@ -744,7 +788,9 @@ const directedNodeTypeFieldOnRelationType = ({
       return [tailParams, subSelection];
     }
   } else {
-    let whereClauses = [labelPredicate].filter(predicate => !!predicate);
+    let whereClauses = [labelPredicate, ...cypherPostfix].filter(
+      predicate => !!predicate
+    );
     const safeRelationshipVar = safeVar(`${variableName}_relation`);
     tailParams.initial = `${initial}${fieldName}: ${
       !isArrayType(fieldType) ? 'head(' : ''
@@ -776,7 +822,13 @@ const directedNodeTypeFieldOnRelationType = ({
         resolveInfo.schema.getType(innerSchemaType.name),
         cypherParams
       )
-    ])}${queryParams})${cypherPostfix}${
+    ])}${queryParams})${
+      cypherPostfix.length > 0
+        ? cypherPostfix[0].match(/exists/gi)
+          ? ''
+          : cypherPostfix[0]
+        : ''
+    }${
       whereClauses.length > 0 ? ` WHERE ${whereClauses.join(' AND ')}` : ''
     } | ${mapProjection}]${
       !isArrayType(fieldType) ? ')' : ''
