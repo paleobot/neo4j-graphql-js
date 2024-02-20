@@ -77,28 +77,14 @@ export const fragmentType = (varName, schemaTypeName) =>
     schemaTypeName
   )} ] )`;
 
-//This is a really cheesy way to pass this info into cypherMatchPostfix. But I don't always have
+//This is a really cheesy way to pass this info into additionalWhereClause. But I don't always have
 //access to the top level type everyplace it is called.
 let topLevelTypeName;
 
-const cypherMatchPostfix = (cypherParams, typeName, variableName) => {
-  /*
-    return cypherParams
-    ? cypherParams.cypherMatchPostfix
-        ? cypherParams.skipPrefixNodeTypes
-        ? cypherParams.skipPrefixNodeTypes.includes(
-            topLevelTypeName.replace(/`/g, '')
-            ) || //Do not include postfix if prefix is omitted (determined by top level type)
-            cypherParams.skipPrefixNodeTypes.includes(typeName.replace(/`/g, '')) //Do not include postfix for listed types
-            ? ''
-            : cypherParams.cypherMatchPostfix
-        : cypherParams.cypherMatchPostfix
-        : ''
-    : '';
-    */
+const additionalWhereClause = (cypherParams, typeName, variableName) => {
   if (
     !cypherParams ||
-    !cypherParams.cypherMatchPostfix ||
+    !cypherParams.whereClause ||
     //Do not include postfix if prefix is omitted (determined by top level type)
     cypherParams.skipPrefixNodeTypes.includes(
       topLevelTypeName.replace(/`/g, '')
@@ -106,11 +92,9 @@ const cypherMatchPostfix = (cypherParams, typeName, variableName) => {
     //Do not include postfix for listed types
     cypherParams.skipPrefixNodeTypes.includes(typeName.replace(/`/g, ''))
   ) {
-    //return '';
     return [];
   } else {
-    //return cypherParams.cypherMatchPostfix.replace("$<>", variableName)
-    return [cypherParams.cypherMatchPostfix.replace('$<>', variableName)];
+    return [cypherParams.whereClause.replace('$<>', variableName)];
   }
 };
 
@@ -298,7 +282,7 @@ export const relationFieldOnNodeType = ({
     filterParams
   });
 
-  const cypherPostfix = cypherMatchPostfix(
+  const extraWereClause = additionalWhereClause(
     cypherParams,
     safeLabel([
       innerSchemaType.name,
@@ -315,8 +299,7 @@ export const relationFieldOnNodeType = ({
     ...neo4jTypeClauses,
     ...arrayPredicates,
     ...filterPredicates,
-    //cypherPostfix.match(/exists/gi) ? cypherPostfix : ''
-    ...cypherPostfix
+    ...extraWereClause
   ].filter(predicate => !!predicate);
 
   tailParams.initial = `${initial}${fieldName}: ${
@@ -336,12 +319,6 @@ export const relationFieldOnNodeType = ({
       cypherParams
     )
   ])}`}${queryParams})${
-    cypherPostfix.length > 0
-      ? cypherPostfix[0].match(/exists/gi)
-        ? ''
-        : cypherPostfix[0]
-      : ''
-  }${
     whereClauses.length > 0 ? ` WHERE ${whereClauses.join(' AND ')}` : ''
   } | ${mapProjection}]${rhsOrdering}${
     !isArrayType(fieldType) ? ')' : ''
@@ -455,7 +432,7 @@ export const relationTypeFieldOnNodeType = ({
             )
           ];
 
-    const cypherPostfix = cypherMatchPostfix(
+    const extraWereClause = additionalWhereClause(
       cypherParams,
       safeLabel([
         innerSchemaType.name,
@@ -471,8 +448,7 @@ export const relationTypeFieldOnNodeType = ({
       ...neo4jTypeClauses,
       ...filterPredicates,
       ...arrayPredicates,
-      //cypherPostfix.match(/exists/gi) ? cypherPostfix : ''
-      ...cypherPostfix
+      ...extraWereClause
     ];
     translation = `${initial}${fieldName}: ${
       !isArrayType(fieldType) ? 'head(' : ''
@@ -484,12 +460,6 @@ export const relationTypeFieldOnNodeType = ({
     )}${queryParams}]-${
       selectsOutgoingField || isFromField ? '>' : ''
     }(:${safeLabel(nestedTypeLabels)})${
-      cypherPostfix.length > 0
-        ? cypherPostfix[0].match(/exists/gi)
-          ? ''
-          : cypherPostfix[0]
-        : ''
-    } ${
       whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')} ` : ''
     }| ${relationshipVariableName} {${subSelection[0]}}]${rhsOrdering}${
       !isArrayType(fieldType) ? ')' : ''
@@ -686,7 +656,7 @@ const directedNodeTypeFieldOnRelationType = ({
     })
   );
 
-  const cypherPostfix = cypherMatchPostfix(
+  const extraWereClause = additionalWhereClause(
     cypherParams,
     safeLabel([
       innerSchemaType.name,
@@ -752,7 +722,7 @@ const directedNodeTypeFieldOnRelationType = ({
         ...neo4jTypeClauses,
         ...filterPredicates,
         ...arrayPredicates,
-        ...cypherPostfix
+        ...extraWereClause
       ];
 
       tailParams.initial = `${initial}${fieldName}: ${
@@ -770,12 +740,6 @@ const directedNodeTypeFieldOnRelationType = ({
           cypherParams
         )
       ])})${
-        cypherPostfix.length > 0
-          ? cypherPostfix[0].match(/exists/gi)
-            ? ''
-            : cypherPostfix[0]
-          : ''
-      } ${
         whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')} ` : ''
       }| ${relationshipVariableName} {${subSelection[0]}}]${rhsOrdering}${
         !isArrayType(fieldType) ? ')' : ''
@@ -788,7 +752,7 @@ const directedNodeTypeFieldOnRelationType = ({
       return [tailParams, subSelection];
     }
   } else {
-    let whereClauses = [labelPredicate, ...cypherPostfix].filter(
+    let whereClauses = [labelPredicate, ...extraWereClause].filter(
       predicate => !!predicate
     );
     const safeRelationshipVar = safeVar(`${variableName}_relation`);
@@ -823,12 +787,6 @@ const directedNodeTypeFieldOnRelationType = ({
         cypherParams
       )
     ])}${queryParams})${
-      cypherPostfix.length > 0
-        ? cypherPostfix[0].match(/exists/gi)
-          ? ''
-          : cypherPostfix[0]
-        : ''
-    }${
       whereClauses.length > 0 ? ` WHERE ${whereClauses.join(' AND ')}` : ''
     } | ${mapProjection}]${
       !isArrayType(fieldType) ? ')' : ''
@@ -1296,7 +1254,7 @@ const nodeQuery = ({
   const safeLabelName = safeLabel([typeName, ...additionalLabels]);
   const rootParamIndex = 1;
 
-  topLevelTypeName = typeName; //tuck it in global for use by cypherMatchPostfix
+  topLevelTypeName = typeName; //tuck it in global for use by additionalWhereClause
 
   const [subQuery, subParams] = buildCypherSelection({
     cypherParams,
