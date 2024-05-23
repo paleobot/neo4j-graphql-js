@@ -1170,6 +1170,9 @@ const customQuery = ({
   nonNullParams
 }) => {
   const safeVariableName = safeVar(variableName);
+
+  topLevelTypeName = null; //zap it for use by additionalWhereClause
+
   const [subQuery, subParams] = buildCypherSelection({
     cypherParams,
     selections,
