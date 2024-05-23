@@ -86,6 +86,7 @@ const additionalWhereClause = (cypherParams, typeName, variableName) => {
     !cypherParams ||
     !cypherParams.whereClause ||
     //Do not include postfix if prefix is omitted (determined by top level type)
+    !topLevelTypeName || //This can happen with custom cypher (@cypher)
     cypherParams.skipPrefixNodeTypes.includes(
       topLevelTypeName.replace(/`/g, '')
     ) ||
