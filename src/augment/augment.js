@@ -5,7 +5,8 @@ import {
   isTypeDefinitionNode,
   isTypeExtensionNode
 } from 'graphql';
-import { makeExecutableSchema, printSchemaWithDirectives } from 'graphql-tools';
+import { makeExecutableSchema } from '@graphql-tools/schema';
+import { printSchemaWithDirectives } from '@graphql-tools/utils';
 import { buildDocument } from './ast';
 import {
   initializeOperationTypes,

@@ -9,7 +9,7 @@ import {
   getDirective,
   getDirectiveArgument
 } from './directives';
-import { getResponseKeyFromInfo } from 'graphql-tools';
+import { getResponseKeyFromInfo } from '@graphql-tools/utils';
 import { Kind } from 'graphql';
 
 /**

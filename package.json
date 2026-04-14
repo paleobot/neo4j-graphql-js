@@ -75,8 +75,11 @@
     "graphql-auth-directives": "^2.2.2",
     "lodash": "^4.17.19",
     "neo4j-driver": "^4.2.1",
-    "graphql": "^15.4.0",
-    "graphql-tools": "^7.0.2"
+    "@graphql-tools/schema": "^8.0.0",
+    "@graphql-tools/utils": "^8.0.0"
+  },
+  "peerDependencies": {
+    "graphql": "^15.0.0 || ^16.0.0"
   },
   "ava": {
     "require": [
